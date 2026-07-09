@@ -1,0 +1,4 @@
+# 启用 wasm SIMD128 —— tract 借此选中手写内核 wasm_f32_8x8（ManuallyOptimized），
+# 是 wasm 下最快的 f32 矩阵乘内核。缺此则回落慢速通道。
+[target.wasm32-wasip1]
+rustflags = ["-C", "target-feature=+simd128"]

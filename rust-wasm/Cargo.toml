@@ -1,0 +1,28 @@
+[package]
+name = "captcha-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "极验点选求解推理核心，编译为 wasm32-wasip1，供 Go 侧经 wazero 加载（纯 WASM，无 CGO）"
+
+[lib]
+name = "captcha_wasm"
+crate-type = ["cdylib"]
+
+[dependencies]
+# 推理引擎（yolo=nano ONNX 加载，siamese=NNEF 加载）
+tract-onnx = "0.23"
+tract-nnef = "0.23"
+# 图像解码：仅验证码所需 png/jpeg
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "jpeg",
+] }
+anyhow = "1"
+log = "0.4"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,48 @@
+name: Rust
+
+# The wasm module is committed (pkg/solver/captcha_wasm.wasm.zst) and the Rust
+# core changes rarely, so this runs only when rust-wasm/** actually changes —
+# Go-only PRs skip the Rust toolchain build entirely.
+on:
+  push:
+    branches: [main]
+    paths: ["rust-wasm/**", ".github/workflows/rust.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["rust-wasm/**", ".github/workflows/rust.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust (wasm build · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-wasm
+
+      - name: cargo fmt
+        run: cargo fmt --manifest-path rust-wasm/Cargo.toml --check
+
+      - name: cargo clippy
+        run: cargo clippy --manifest-path rust-wasm/Cargo.toml --release -- -D warnings
+
+      - name: build wasm (wasm32-wasip1, SIMD128)
+        run: cargo build --manifest-path rust-wasm/Cargo.toml --release --target wasm32-wasip1
+
+      - name: cargo test (host)
+        run: cargo test --manifest-path rust-wasm/Cargo.toml --release

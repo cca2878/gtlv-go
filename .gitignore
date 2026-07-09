@@ -1,0 +1,22 @@
+# 构建产物
+/bin/
+/build/
+
+# Rust 构建输出（wasm 由 make build-wasm 重新生成；仅 pkg/solver/*.wasm.zst 入库）
+/rust-wasm/target/
+
+# 交叉编译二进制
+*.exe
+gt-captcha-*
+
+# 测试/覆盖率
+*.out
+coverage.*
+
+# 编辑器/系统
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# 注意：pkg/solver/captcha_wasm.wasm.zst 是 go:embed 源，必须入库，勿忽略。
