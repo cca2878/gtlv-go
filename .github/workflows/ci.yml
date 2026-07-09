@@ -14,13 +14,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # GitHub's `paths:` filter is workflow-level, not per-job, so to run the slow
+  # Rust job only when the Rust core changes we detect it here and gate that job
+  # with `needs`/`if`. The wasm is committed, so Go-only PRs skip Rust entirely.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'rust-wasm/**'
+              - 'rust-toolchain.toml'
+              - '.github/workflows/ci.yml'
+
   test:
     name: Go (lint · test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -56,9 +74,9 @@ jobs:
         goos: [linux, windows, darwin]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -76,11 +94,40 @@ jobs:
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
-      - uses: golangci/golangci-lint-action@v7
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
+
+  rust:
+    name: Rust (wasm build · test)
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Honor rust-toolchain.toml (pinned channel + components + targets) so CI
+      # uses the exact same toolchain as local `make check` — no version skew.
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-wasm
+
+      - name: cargo fmt
+        run: cargo fmt --manifest-path rust-wasm/Cargo.toml --check
+
+      - name: cargo clippy
+        run: cargo clippy --manifest-path rust-wasm/Cargo.toml --release -- -D warnings
+
+      - name: build wasm (wasm32-wasip1, SIMD128)
+        run: cargo build --manifest-path rust-wasm/Cargo.toml --release --target wasm32-wasip1
+
+      - name: cargo test (host)
+        run: cargo test --manifest-path rust-wasm/Cargo.toml --release
