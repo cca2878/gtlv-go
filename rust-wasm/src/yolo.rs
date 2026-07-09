@@ -21,6 +21,15 @@ pub struct YoloDetector {
     input_shape: (usize, usize), // (height, width)
 }
 
+/// Letterbox 几何参数：正向缩放/填充量，以及反变换回原图坐标所需的原图尺寸。
+struct Letterbox {
+    scale: f32,
+    pad_x: f32,
+    pad_y: f32,
+    orig_w: f32,
+    orig_h: f32,
+}
+
 impl YoloDetector {
     pub fn new(model_path: &Path, input_size: usize) -> Result<Self> {
         log::info!(
@@ -37,7 +46,7 @@ impl YoloDetector {
             .into_runnable()?;
 
         Ok(Self {
-            model: model.into(),
+            model,
             input_shape: (input_size, input_size),
         })
     }
@@ -79,7 +88,7 @@ impl YoloDetector {
         image::imageops::overlay(&mut canvas, &rgb, pad_x as i64, pad_y as i64);
 
         // 转换为 NCHW float32 格式
-        let mut input_data = Vec::with_capacity(1 * 3 * th as usize * tw as usize);
+        let mut input_data = Vec::with_capacity(3 * th as usize * tw as usize);
         for c in 0..3 {
             for y in 0..th as usize {
                 for x in 0..tw as usize {
@@ -97,15 +106,14 @@ impl YoloDetector {
         let outputs = self.model.run(tvec!(input_tensor.into()))?;
 
         // 后处理：解析输出并反 letterbox 到原图坐标
-        let detections = self.parse_outputs(
-            &outputs,
-            conf_threshold,
+        let letterbox = Letterbox {
             scale,
-            pad_x as f32,
-            pad_y as f32,
+            pad_x: pad_x as f32,
+            pad_y: pad_y as f32,
             orig_w,
             orig_h,
-        )?;
+        };
+        let detections = self.parse_outputs(&outputs, conf_threshold, &letterbox)?;
 
         Ok(detections)
     }
@@ -114,11 +122,7 @@ impl YoloDetector {
         &self,
         outputs: &[tract_onnx::prelude::TValue],
         conf_threshold: f32,
-        scale: f32,
-        pad_x: f32,
-        pad_y: f32,
-        orig_w: f32,
-        orig_h: f32,
+        lb: &Letterbox,
     ) -> Result<Vec<Detection>> {
         let mut detections = Vec::new();
 
@@ -145,10 +149,10 @@ impl YoloDetector {
                 let class_id = output[[0, i, 5]] as i32;
 
                 // 反 letterbox：去除填充 → 除以缩放比 → 回到原图坐标
-                let x_min = ((x1 - pad_x) / scale).max(0.0).min(orig_w);
-                let y_min = ((y1 - pad_y) / scale).max(0.0).min(orig_h);
-                let x_max = ((x2 - pad_x) / scale).max(0.0).min(orig_w);
-                let y_max = ((y2 - pad_y) / scale).max(0.0).min(orig_h);
+                let x_min = ((x1 - lb.pad_x) / lb.scale).max(0.0).min(lb.orig_w);
+                let y_min = ((y1 - lb.pad_y) / lb.scale).max(0.0).min(lb.orig_h);
+                let x_max = ((x2 - lb.pad_x) / lb.scale).max(0.0).min(lb.orig_w);
+                let y_max = ((y2 - lb.pad_y) / lb.scale).max(0.0).min(lb.orig_h);
 
                 detections.push(Detection {
                     x_min,

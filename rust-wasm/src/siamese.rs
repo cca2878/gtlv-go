@@ -18,7 +18,7 @@ impl SiameseExtractor {
             log::info!("Loading Siamese NNEF model: {:?}", model_path);
             tract_nnef::nnef()
                 .model_for_path(model_path)?
-                .with_input_fact(0, f32::fact([1, 3, 96, 96]).into())?
+                .with_input_fact(0, f32::fact([1, 3, 96, 96]))?
                 .into_optimized()?
                 .into_runnable()?
         } else {
@@ -31,7 +31,7 @@ impl SiameseExtractor {
         };
 
         Ok(Self {
-            model: model.into(),
+            model,
             input_shape: (96, 96),
         })
     }
@@ -45,7 +45,7 @@ impl SiameseExtractor {
         let rgb = resized.to_rgb8();
 
         // 转换为 NCHW float32 格式（归一化到 [0, 1]）
-        let mut input_data = Vec::with_capacity(1 * 3 * h * w);
+        let mut input_data = Vec::with_capacity(3 * h * w);
         for c in 0..3 {
             for y in 0..h {
                 for x in 0..w {

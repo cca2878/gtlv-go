@@ -25,11 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip1
-          components: rustfmt, clippy
+      # Honor rust-toolchain.toml (pinned channel + components + targets) so CI
+      # uses the exact same toolchain as local `make check` — no version skew.
+      - name: Install pinned Rust toolchain
+        run: rustup show
 
       - uses: Swatinem/rust-cache@v2
         with:
