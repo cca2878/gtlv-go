@@ -18,11 +18,11 @@ all: build-all
 deps:
 	$(GO) mod tidy
 
-# 外部构建工具检查。Rust 工具链版本与 wasm target 由 rust-toolchain.toml 声明、rustup 按需安装，
-# 但 cargo 与 zstd 本身得先装好——缺了要在这里说清楚怎么装，而不是让 shell 抛 "not found"。
+# 外部构建工具检查。Rust 版本与 wasm target 由 rust-toolchain.toml 声明、rustup 按需安装；
+# cargo 与 zstd 须预先安装，缺失时在此给出安装方式，而非由 shell 抛出 "not found"。
 #
-# zstd 用 CLI 而非 Go 库：wasm.zst 随仓提交、go:embed 进每个二进制与 aar，压缩率要顶格。
-# 实测 klauspost/compress 最高档比 `zstd -19` 大 1.83%（约 515KB），这个体积所有下游长期都在付。
+# 采用 zstd CLI 而非 Go 侧的压缩库：wasm.zst 随仓提交并 go:embed 进每个二进制与 aar，
+# 而 klauspost/compress 最高档实测比 `zstd -19` 大 1.83%（约 515KB），该体积由全部下游承担。
 check-tools:
 	@ok=1; \
 	command -v $(CARGO) >/dev/null 2>&1 || { \
