@@ -112,9 +112,9 @@ func (s *CaptchaSolver) Solve(ctx context.Context, imageData []byte) (*Result, e
 	timer := perf.New(s.opts.enablePerf)
 	totalStart := time.Now()
 
-	// 1. 图像解码（校验图片可解码；实际推理由 Rust 侧从原始字节重新解码）
+	// 1. 只校验图像可解码（读文件头即可）；真正的解码在 wasm 侧、且只做一次。
 	timer.Start("image_decode")
-	if _, err := gtimage.Decode(imageData); err != nil {
+	if err := gtimage.Validate(imageData); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrImageDecode, err)
 	}
 	timer.Stop("image_decode")
