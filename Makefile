@@ -4,6 +4,7 @@ GO := go
 CARGO := cargo
 ZSTD := zstd
 WASM_CRATE := rust-wasm
+# 纯核 gtlv-core 现为独立仓（../gtlv-core），自带 fmt/clippy；本仓只 lint 自己的 rust-wasm 壳。
 WASM_TARGET := wasm32-wasip1
 WASM_OUT := $(WASM_CRATE)/target/$(WASM_TARGET)/release/captcha_wasm.wasm
 # WASM_ZST：go:embed 携带的压缩 wasm（跨平台一份，随仓提交）

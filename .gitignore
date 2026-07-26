@@ -8,6 +8,9 @@
 # 交叉编译二进制
 *.exe
 gt-captcha-*
+# `go build ./...` 会把各 main 包编到仓根，同名二进制勿入库
+/eval-model
+/mine-pairs
 
 # 测试/覆盖率
 *.out

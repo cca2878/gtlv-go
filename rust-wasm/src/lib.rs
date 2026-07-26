@@ -10,25 +10,16 @@
 //!   - `gt_solve(img_len, conf) -> i32`  读缓冲前 img_len 字节为图像 → 求解 → 把 wire 二进制写回缓冲首部，返回其长度(>0)；<0=err
 //!
 //! 并发：模块单实例、guest 单线程；Go 侧对每次「写图→gt_solve→读结果」加锁串行化。
-mod engine;
-mod perf;
-mod siamese;
 mod wire;
-mod yolo;
 
 use std::ptr::addr_of_mut;
 use std::sync::OnceLock;
 
-use engine::Engine;
-use perf::PerfTimer;
+use gtlv_core::{Engine, PerfTimer};
 
 const BUFFER_SIZE: usize = 4 * 1024 * 1024;
 static mut SHARED_BUFFER: [u8; BUFFER_SIZE] = [0u8; BUFFER_SIZE];
 static ENGINE: OnceLock<Engine> = OnceLock::new();
-
-// 模型路径：Go 侧经 wazero `WithFSMount` 把模型目录挂到 `/models`。
-const YOLO_PATH: &str = "/models/yolo26n_gt_v2_384.onnx";
-const SIAMESE_PATH: &str = "/models/siamese_feature.nnef.tgz";
 
 #[no_mangle]
 pub extern "C" fn gt_buffer_ptr() -> u32 {
@@ -43,9 +34,7 @@ pub extern "C" fn gt_buffer_cap() -> u32 {
 /// 加载模型（一次，热态常驻）。重复调用返回 -2。
 #[no_mangle]
 pub extern "C" fn gt_init() -> i32 {
-    let yolo = std::path::Path::new(YOLO_PATH);
-    let siamese = std::path::Path::new(SIAMESE_PATH);
-    match Engine::new(yolo, siamese) {
+    match Engine::new() {
         Ok(engine) => {
             if ENGINE.set(engine).is_err() {
                 return -2;
@@ -84,7 +73,7 @@ pub extern "C" fn gt_solve(img_len: u32, conf: f32) -> i32 {
         }
     };
 
-    let encoded = result.encode();
+    let encoded = wire::encode(&result);
     if encoded.len() > BUFFER_SIZE {
         return -4;
     }

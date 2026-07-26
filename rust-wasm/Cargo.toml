@@ -9,16 +9,9 @@ name = "captcha_wasm"
 crate-type = ["cdylib"]
 
 [dependencies]
-# 推理引擎（yolo=nano ONNX 加载，siamese=NNEF 加载）
-tract-onnx = "0.23"
-tract-nnef = "0.23"
-# 图像解码：仅验证码所需 png/jpeg
-image = { version = "0.25", default-features = false, features = [
-    "png",
-    "jpeg",
-] }
-anyhow = "1"
-log = "0.4"
+# 纯核（推理逻辑 + 领域类型），独立仓 ref/captcha/project/gtlv-core；tract/image 等经此传递依赖，
+# 壳本身只做 wasm ABI + wire 序列化。开发期 path 依赖，core 稳定后可切 git rev 锁版本。
+gtlv-core = { path = "../../gtlv-core" }
 
 [profile.release]
 opt-level = "s"

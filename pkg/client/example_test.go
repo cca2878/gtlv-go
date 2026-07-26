@@ -12,8 +12,8 @@ import (
 
 // 展示可复用客户端的典型用法：配置一次，对多个 gt/challenge 反复求解，并按类型化错误决策。
 func ExampleV3Client_GetValidate() {
-	// 点选需要本地求解器（滑动不需要）。整个进程建一次即可。
-	sol, err := solver.NewCaptchaSolver(solver.WithModelDir("models"))
+	// 点选需要本地求解器（滑动不需要）。模型已内嵌，无需任何外部文件；整个进程建一次即可。
+	sol, err := solver.NewCaptchaSolver()
 	if err != nil {
 		log.Fatal(err)
 	}

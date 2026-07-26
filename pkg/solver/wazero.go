@@ -62,11 +62,11 @@ func newWasmBackend(ctx context.Context, o options) (*wasmBackend, error) {
 	rt := wazero.NewRuntimeWithConfig(ctx, rtConfig)
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)
 
-	// 把模型目录挂到 wasm 的 /models（wasm 侧从 /models/... 读模型）。
+	// 无需挂载任何文件系统：模型已由 gtlv-core 经 include_bytes! 编入 wasm 模块自身，
+	// wasm 侧从内存字节加载（零外部文件、零临时目录）。
 	// WithSysNanotime/Walltime：让 wasm 内 std::time::Instant 走真实时钟（否则默认固定时钟，
 	// 内部 PerfTimer 全为 0）。
 	modConfig := wazero.NewModuleConfig().
-		WithFSConfig(wazero.NewFSConfig().WithDirMount(o.modelDir, "/models")).
 		WithStderr(os.Stderr).
 		WithSysNanotime().
 		WithSysWalltime()
@@ -96,7 +96,7 @@ func newWasmBackend(ctx context.Context, o options) (*wasmBackend, error) {
 	}
 	if code := api.DecodeI32(initRes[0]); code != 0 {
 		_ = b.close()
-		return nil, fmt.Errorf("gt_init failed (code %d); model dir %q must contain the models", code, o.modelDir)
+		return nil, fmt.Errorf("gt_init failed (code %d); model FS must contain yolo26n_gt_v2_384.onnx and siamese_feature.nnef.tgz", code)
 	}
 
 	ptrRes, _ := ptrFn.Call(ctx)
