@@ -9,9 +9,11 @@ name = "captcha_wasm"
 crate-type = ["cdylib"]
 
 [dependencies]
-# 纯核（推理逻辑 + 领域类型），独立仓 ref/captcha/project/gtlv-core；tract/image 等经此传递依赖，
-# 壳本身只做 wasm ABI + wire 序列化。开发期 path 依赖，core 稳定后可切 git rev 锁版本。
-gtlv-core = { path = "../../gtlv-core" }
+# 纯核（推理逻辑 + 领域类型 + 内嵌模型），tract/image 等经此传递依赖，壳本身只做 wasm ABI + wire 序列化。
+# 钉到发布 tag：模型即其产物的一部分，故随仓提交的 captcha_wasm.wasm.zst 可追溯到确定的核版本，
+# 升级须是显式动作；Cargo.lock 另记录解析出的精确 commit，可复现性不依赖 tag 本身。
+# 就地改核调试：cargo build --config 'patch."https://github.com/cca2878/gtlv-core".gtlv-core.path="../../gtlv-core"'
+gtlv-core = { git = "https://github.com/cca2878/gtlv-core", tag = "v0.1.0" }
 
 [profile.release]
 opt-level = "s"
