@@ -3,6 +3,7 @@ package solver
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -37,6 +38,25 @@ func compilationCache(cacheDir string) (wazero.CompilationCache, error) {
 	return wazero.NewCompilationCacheWithDir(dir)
 }
 
+// stderrWriter 返回可安全交给 wazero 的 stderr。
+//
+// wazero 对 *os.File 走 stdio 快路径，实例化时会先 Stat 它以确定文件类型；句柄不可用时
+// 这一步失败，整个模块实例化随之失败。宿主进程没有标准错误流时就是这种情形——典型是
+// Windows GUI 子系统（链接 -H=windowsgui）下的进程不带控制台，os.Stderr 包着一个无效句柄，
+// Stat 报 "getfiletype /dev/stderr: The handle is invalid"，求解器于是根本创建不出来。
+//
+// 探不通就丢弃 wasm 侧的 stderr：那上面只有 Rust 的 panic 文本，求解本身的失败仍由
+// gt_solve 的返回值报告，不依赖这条流。
+func stderrWriter(f *os.File) io.Writer {
+	if f == nil {
+		return io.Discard
+	}
+	if _, err := f.Stat(); err != nil {
+		return io.Discard
+	}
+	return f
+}
+
 // newWasmBackend 实例化 wasm 模块、挂载模型目录、调用 gt_init 一次性加载模型（热态常驻）。
 func newWasmBackend(ctx context.Context, o options) (*wasmBackend, error) {
 	wasmMod, err := embeddedWasm()
@@ -67,7 +87,7 @@ func newWasmBackend(ctx context.Context, o options) (*wasmBackend, error) {
 	// WithSysNanotime/Walltime：让 wasm 内 std::time::Instant 走真实时钟（否则默认固定时钟，
 	// 内部 PerfTimer 全为 0）。
 	modConfig := wazero.NewModuleConfig().
-		WithStderr(os.Stderr).
+		WithStderr(stderrWriter(os.Stderr)).
 		WithSysNanotime().
 		WithSysWalltime()
 
