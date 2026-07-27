@@ -17,6 +17,12 @@ import (
 	"github.com/cca2878/gtlv-go/internal/perf"
 )
 
+// DefaultConfThreshold 是未经 WithConfThreshold 指定时的检测置信度阈值。
+//
+// 检测分数近乎二值：真答案格多在 0.8 以上，误检要到 0.005 以下才出现。取值落在这段空档里，
+// 以召回笔画稀疏或贴边被截断的格；超量由 Rust 侧的答案格数量上限截断兜底。
+const DefaultConfThreshold float32 = 0.1
+
 // Option 是 CaptchaSolver 的配置选项。
 type Option func(*options)
 
@@ -82,7 +88,7 @@ type CaptchaSolver struct {
 func NewCaptchaSolver(opts ...Option) (*CaptchaSolver, error) {
 	o := options{
 		enablePerf:    true,
-		confThreshold: 0.5,
+		confThreshold: DefaultConfThreshold,
 	}
 	for _, opt := range opts {
 		opt(&o)
