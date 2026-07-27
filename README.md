@@ -92,8 +92,7 @@ default:
 }
 ```
 
-gt/challenge 由你的业务接口提供；`client.Register` 可从公开登记端点取一对用于自测。
-端到端联网冒烟：
+gt/challenge 由你的业务接口提供；`client.Register` 可从公开登记端点取一对用于自测。端到端联网冒烟：
 
 ```bash
 go run ./cmd/gt-captcha-e2e -models ./models -n 3   # 登记→拉图→求解→提交→打印 validate
