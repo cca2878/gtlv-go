@@ -1,8 +1,8 @@
-# gtlv-go · 极验验证码求解库（纯 WASM，无 CGO）
+# gtlv-go · gt 验证码求解库（纯 WASM，无 CGO）
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)
 
-极验（GeeTest）验证码求解库。点选推理经 [wazero](https://github.com/tetratelabs/wazero) **进程内加载** Rust 推理模块（[`tract`](https://github.com/sonos/tract) 编为 `wasm32-wasip1`）完成——**全程无 CGO、无子进程、无 `.so` 分发**，一份 `go:embed` 的 `.wasm` 通吃所有支持平台。
+gt 验证码求解库。点选推理经 [wazero](https://github.com/tetratelabs/wazero) **进程内加载** Rust 推理模块（[`tract`](https://github.com/sonos/tract) 编为 `wasm32-wasip1`）完成——**全程无 CGO、无子进程、无 `.so` 分发**，一份 `go:embed` 的 `.wasm` 通吃所有支持平台。
 
 ```
 import "github.com/cca2878/gtlv-go/pkg/solver"
@@ -18,7 +18,7 @@ import "github.com/cca2878/gtlv-go/pkg/solver"
 
 ```
 ┌─ 网络外层（唯一触网）────────────────────────────────────────┐
-│  pkg/client   极验 V3 协议编排：challenge → 拉图 → 提交 → validate │
+│  pkg/client   gt V3 协议编排：challenge → 拉图 → 提交 → validate │
 └───────────────┬──────────────────────────────────────────────┘
                 │ 仅通过 solver.Solve / crypto 调用下层
 ┌─ 纯本地层（离线可测，不触网）────────────────────────────────┐
@@ -152,7 +152,7 @@ solver.NewCaptchaSolver(
 | `pkg/solver/` | 点选求解 API（`solver.go`，含 `Err*` 类型化错误）、wazero 后端（`wazero.go`）、缓存目录定位（`cachedir.go`）、内嵌 wasm（`embed.go`）、wire 解码（`wire.go`） |
 | `pkg/solver/classic/` | 滑动求解（背景还原 + 缺口识别 + 轨迹；本地图像处理，`SolveSlide`；AGPL 来源见 [许可](#许可)） |
 | `pkg/crypto/` | w 参数加密（点选/滑动），仅暴露 `ClickCalculate`/`SlideCalculate`（纯本地） |
-| `pkg/client/` | 极验 V3 协议编排（**唯一触网层**）：`v3.go` 可复用客户端+分派，`click.go`/`slide.go` 两条路径，`register.go` 自测登记，`errors.go` 类型化错误 |
+| `pkg/client/` | gt V3 协议编排（**唯一触网层**）：`v3.go` 可复用客户端+分派，`click.go`/`slide.go` 两条路径，`register.go` 自测登记，`errors.go` 类型化错误 |
 | `internal/{image,matcher,perf}/` | 图像解码、匈牙利匹配、计时（实现细节，不对使用方暴露） |
 | `cmd/gt-captcha-test/` | 点选本地调试 CLI（给定图片/参数出坐标与 W） |
 | `cmd/gt-captcha-e2e/` | 端到端联网冒烟（登记 → 自动分派点选/滑动 → validate） |
@@ -161,7 +161,7 @@ solver.NewCaptchaSolver(
 
 ## 状态
 
-- **点选（pkg/solver + pkg/client 点选路径）**：**已真机联网验证通过**——`cmd/gt-captcha-e2e` 走完整「登记 → 拉图 → wasm 求解 → 算 w → 提交」链路，对真实极验端点连续多轮取回有效 validate（端点/JSONP/坐标缩放对齐 [biliTicker_gt](https://github.com/Amorter/biliTicker_gt)）。
+- **点选（pkg/solver + pkg/client 点选路径）**：**已真机联网验证通过**——`cmd/gt-captcha-e2e` 走完整「登记 → 拉图 → wasm 求解 → 算 w → 提交」链路，对真实 gt 端点连续多轮取回有效 validate（端点/JSONP/坐标缩放对齐 [biliTicker_gt](https://github.com/Amorter/biliTicker_gt)）。
 - **滑动（pkg/solver/classic + pkg/client 滑动路径）**：与点选对等的一等公民——`GetValidate` 按类型自动分派，滑动走纯本地「还原 → 缺口识别 → 轨迹」，用本轮新 challenge 与 c/s 算 w。协议编排与解析已离线单测；因公开自测端点（Bilibili）仅下发点选，滑动路径尚未真机联网跑通。
 - **反机器时延**：`verify` 前的等待按「本轮签发 → 提交」总时长补足到 2s（非固定睡满），wasm 推理耗时自然计入。可经 `WithVerifyDelay` 调整。
 

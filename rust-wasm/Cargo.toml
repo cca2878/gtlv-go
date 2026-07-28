@@ -2,7 +2,7 @@
 name = "captcha-wasm"
 version = "0.1.0"
 edition = "2021"
-description = "极验点选求解推理核心，编译为 wasm32-wasip1，供 Go 侧经 wazero 加载（纯 WASM，无 CGO）"
+description = "gt 点选求解推理核心，编译为 wasm32-wasip1，供 Go 侧经 wazero 加载（纯 WASM，无 CGO）"
 
 [lib]
 name = "captcha_wasm"

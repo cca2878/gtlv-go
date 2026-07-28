@@ -46,7 +46,7 @@ func GenerateTrack(distance int) []TrackPoint {
 		lastX = ix
 	}
 
-	// 3. 末点重复一次（符合极验特征）。
+	// 3. 末点重复一次（符合 gt 特征）。
 	if len(track) > 0 {
 		track = append(track, track[len(track)-1])
 	}
@@ -54,7 +54,7 @@ func GenerateTrack(distance int) []TrackPoint {
 	return track
 }
 
-// EncryptTrack 对轨迹进行极验特有的编码。
+// EncryptTrack 对轨迹进行 gt 特有的编码。
 func EncryptTrack(track []TrackPoint) string {
 	if len(track) < 2 {
 		return ""

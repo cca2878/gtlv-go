@@ -47,7 +47,7 @@ func TestGenerateTrack(t *testing.T) {
 
 func TestEncryptTrackFormat(t *testing.T) {
 	enc := EncryptTrack(GenerateTrack(100))
-	// 极验轨迹编码为 r!!i!!o 三段，故恰含两处 "!!"。
+	// gt 轨迹编码为 r!!i!!o 三段，故恰含两处 "!!"。
 	if n := strings.Count(enc, "!!"); n != 2 {
 		t.Fatalf("expected 2 '!!' separators, got %d in %q", n, enc)
 	}

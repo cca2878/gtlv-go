@@ -1,7 +1,7 @@
 package crypto
 
 // ── 自定义 Base64 ──────────────────────────────────────────────────
-// 极验自定义 Base64 编码表（64 字符 + '.' 作为 padding）。
+// gt 自定义 Base64 编码表（64 字符 + '.' 作为 padding）。
 var base64Table = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789()")
 
 // 位掩码，用于从 24-bit 输入中提取对应 base64 字符的 6-bit 索引。
@@ -33,7 +33,7 @@ func getIntByMask(base, mask int) int {
 	return res
 }
 
-// customBase64Encode 极验专用 Base64 编码。
+// customBase64Encode gt 专用 Base64 编码。
 func customBase64Encode(data []byte) string {
 	length := len(data)
 	result := make([]byte, 0, length*4/3+4)

@@ -38,7 +38,7 @@ func Register(ctx context.Context, hc *http.Client, registerURL string) (gt, cha
 
 	var root struct {
 		Data struct {
-			Geetest struct {
+			Gt struct {
 				GT        string `json:"gt"`
 				Challenge string `json:"challenge"`
 			} `json:"geetest"`
@@ -47,7 +47,7 @@ func Register(ctx context.Context, hc *http.Client, registerURL string) (gt, cha
 	if err := json.Unmarshal(body, &root); err != nil {
 		return "", "", fmt.Errorf("parse register json: %w (body=%.160q)", err, body)
 	}
-	g := root.Data.Geetest
+	g := root.Data.Gt
 	if g.GT == "" || g.Challenge == "" {
 		return "", "", fmt.Errorf("register response missing gt/challenge (body=%.160q)", body)
 	}
