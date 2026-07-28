@@ -10,7 +10,7 @@ import (
 type SlideResult struct {
 	// Distance 是缺口相对滑块起点的水平位移（还原后 260 宽坐标系，像素）。
 	Distance int
-	// EncryptedTrack 是极验特有编码后的滑动轨迹。
+	// EncryptedTrack 是 gt 特有编码后的滑动轨迹。
 	EncryptedTrack string
 }
 

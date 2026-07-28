@@ -93,11 +93,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 name = "captcha-wasm"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "image",
- "log",
- "tract-nnef",
- "tract-onnx",
+ "gtlv-core",
 ]
 
 [[package]]
@@ -307,6 +303,18 @@ dependencies = [
  "libc",
  "r-efi",
  "rand_core",
+]
+
+[[package]]
+name = "gtlv-core"
+version = "0.1.2"
+source = "git+https://github.com/cca2878/gtlv-core?tag=v0.1.2#32cebb1bf5b11273ae8f66e5cfdd3b71b6cc9669"
+dependencies = [
+ "anyhow",
+ "image",
+ "log",
+ "tract-nnef",
+ "tract-onnx",
 ]
 
 [[package]]

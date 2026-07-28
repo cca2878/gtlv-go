@@ -11,8 +11,8 @@ import (
 	"math"
 )
 
-// RestoreImage 还原极验乱序背景图。
-// 极验背景图由 52 个切片组成，每个切片宽 10 像素，高 80 像素。
+// RestoreImage 还原 gt 乱序背景图。
+// gt 背景图由 52 个切片组成，每个切片宽 10 像素，高 80 像素。
 // 原始图宽 312/320，还原后宽 260，高 160。
 func RestoreImage(img image.Image) image.Image {
 	offset := []int{

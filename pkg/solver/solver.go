@@ -17,12 +17,17 @@ import (
 	"github.com/cca2878/gtlv-go/internal/perf"
 )
 
+// DefaultConfThreshold 是未经 WithConfThreshold 指定时的检测置信度阈值。
+//
+// 检测分数近乎二值：真答案格多在 0.8 以上，误检要到 0.005 以下才出现。取值落在这段空档里，
+// 以召回笔画稀疏或贴边被截断的格；超量由 Rust 侧的答案格数量上限截断兜底。
+const DefaultConfThreshold float32 = 0.1
+
 // Option 是 CaptchaSolver 的配置选项。
 type Option func(*options)
 
 type options struct {
 	wasmPath      string
-	modelDir      string
 	cacheDir      string
 	enablePerf    bool
 	verbose       bool
@@ -41,13 +46,6 @@ func WithWasmPath(path string) Option {
 func WithCacheDir(dir string) Option {
 	return func(o *options) {
 		o.cacheDir = dir
-	}
-}
-
-// WithModelDir 指定模型文件目录。
-func WithModelDir(dir string) Option {
-	return func(o *options) {
-		o.modelDir = dir
 	}
 }
 
@@ -85,19 +83,16 @@ type CaptchaSolver struct {
 }
 
 // NewCaptchaSolver 创建求解器实例：实例化 wasm 模块、一次性加载模型（热态常驻）。
-// modelDir 需含 yolo26n_gt_v2_384.onnx 与 siamese_feature.nnef.tgz。
+// 模型已随 wasm 模块内嵌（由 gtlv-core include_bytes! 携带），无需任何外部文件。
+// 换模型＝换 wasm：改 gtlv-core/modeldata 后重编，或用 WithWasmPath 指定外部 .wasm。
 func NewCaptchaSolver(opts ...Option) (*CaptchaSolver, error) {
 	o := options{
 		enablePerf:    true,
-		confThreshold: 0.5,
+		confThreshold: DefaultConfThreshold,
 	}
 	for _, opt := range opts {
 		opt(&o)
 	}
-	if o.modelDir == "" {
-		o.modelDir = "models"
-	}
-
 	backend, err := newWasmBackend(context.Background(), o)
 	if err != nil {
 		return nil, err
@@ -123,9 +118,9 @@ func (s *CaptchaSolver) Solve(ctx context.Context, imageData []byte) (*Result, e
 	timer := perf.New(s.opts.enablePerf)
 	totalStart := time.Now()
 
-	// 1. 图像解码（校验图片可解码；实际推理由 Rust 侧从原始字节重新解码）
+	// 1. 只校验图像可解码（读文件头即可）；真正的解码在 wasm 侧、且只做一次。
 	timer.Start("image_decode")
-	if _, err := gtimage.Decode(imageData); err != nil {
+	if err := gtimage.Validate(imageData); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrImageDecode, err)
 	}
 	timer.Stop("image_decode")
@@ -183,32 +178,34 @@ func (s *CaptchaSolver) Solve(ctx context.Context, imageData []byte) (*Result, e
 		return nil, ErrNoPromptBox
 	}
 
-	nAnswers := len(answerBoxes)
-	if nAnswers == 0 {
+	m := len(answerBoxes)
+	if m == 0 {
 		return nil, ErrNoAnswerBoxes
 	}
-	if nAnswers < 2 || nAnswers > 4 {
-		return nil, fmt.Errorf("%w: got %d", ErrAnswerCountOutOfRange, nAnswers)
-	}
 
-	// 提示词框等分
-	promptSegments := splitPromptBox(promptBox, nAnswers)
-
-	// 5. 匈牙利匹配
+	// 5. 矩形指派。k(提示词字数)= Rust 按提示框长宽比标定后返回的提示特征数，不再等于 m。
 	timer.Start("match")
 	promptFeatures := make([][]float64, 0, len(resp.PromptFeatures))
 	for _, fv := range resp.PromptFeatures {
 		promptFeatures = append(promptFeatures, float64Slice(fv))
 	}
-
-	// 校验特征数量与检测结果是否对齐（Rust 侧特征提取失败会静默跳过）
-	if len(answerFeatures) != len(answerBoxes) {
-		return nil, fmt.Errorf("%w: %d answer features for %d detections",
-			ErrFeatureCountMismatch, len(answerFeatures), len(answerBoxes))
+	k := len(promptFeatures)
+	if k < 2 || k > 4 {
+		// k 由提示框 aspect 标定；落在 [2,4] 外说明提示框缺失/异常或提示段特征提取失败。
+		return nil, fmt.Errorf("%w: got k=%d from prompt box", ErrAnswerCountOutOfRange, k)
 	}
-	if len(promptFeatures) != nAnswers {
-		return nil, fmt.Errorf("%w: %d prompt features for %d segments",
-			ErrFeatureCountMismatch, len(promptFeatures), nAnswers)
+	if m < k {
+		// 答案格数不足以覆盖 k 个目标 → 检测漏了目标，换图重试。
+		return nil, fmt.Errorf("%w: %d tiles < %d targets", ErrAnswerCountOutOfRange, m, k)
+	}
+
+	// 提示词框按 k 等分（用于展示/回映）
+	promptSegments := splitPromptBox(promptBox, k)
+
+	// 校验答案特征数与答案框对齐（Rust 侧特征提取失败会静默跳过）
+	if len(answerFeatures) != m {
+		return nil, fmt.Errorf("%w: %d answer features for %d detections",
+			ErrFeatureCountMismatch, len(answerFeatures), m)
 	}
 
 	var matches []Match

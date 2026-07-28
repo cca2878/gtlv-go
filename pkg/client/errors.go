@@ -7,7 +7,7 @@ import (
 
 // 哨兵错误，供 errors.Is 判定。
 var (
-	// ErrVerificationFailed 表示极验判定本次验证未通过（答案错误或行为可疑）。
+	// ErrVerificationFailed 表示 gt 判定本次验证未通过（答案错误或行为可疑）。
 	// 这是【可重试】信号：换一张图再来一次通常能成功（见 WithMaxAttempts）。
 	// 具体服务端原因由 *VerifyError 携带，且 errors.Is(err, ErrVerificationFailed) 为真。
 	ErrVerificationFailed = errors.New("gtlv/client: verification failed")
@@ -16,7 +16,7 @@ var (
 	ErrSolverRequired = errors.New("gtlv/client: click captcha requires a solver")
 )
 
-// VerifyError 携带极验 verify 响应中的失败详情，Unwrap 到 ErrVerificationFailed。
+// VerifyError 携带 gt verify 响应中的失败详情，Unwrap 到 ErrVerificationFailed。
 type VerifyError struct {
 	Result  string // data.result（点选路径；如 "fail"）
 	Message string // data.message（滑动路径）

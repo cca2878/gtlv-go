@@ -7,7 +7,12 @@
 
 # 交叉编译二进制
 *.exe
-gt-captcha-*
+# `go build ./...` 会把各 main 包编到仓根，同名二进制勿入库；须加 / 锚定，
+# 否则同名的 cmd/ 源码目录会一并被忽略
+/gt-captcha-test
+/gt-captcha-e2e
+/eval-model
+/mine-pairs
 
 # 测试/覆盖率
 *.out

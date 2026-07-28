@@ -1,6 +1,6 @@
 // Package client 是本库的【网络外层】——唯一触网（net/http）的包。
 //
-// 它编排极验 V3 协议（点选 + 滑动）：申请 c/s → 判定类型 → 取本轮参数与图像 → 调用纯本地
+// 它编排 gt V3 协议（点选 + 滑动）：申请 c/s → 判定类型 → 取本轮参数与图像 → 调用纯本地
 // 的求解层（点选走 pkg/solver 的 wasm 推理，滑动走 pkg/solver/classic 的图像处理）→ 用
 // pkg/crypto 计算 w → 提交并取回 validate。与纯本地层界限分明：本地层完全离线可测，本包是
 // 薄而可替换的编排器。
@@ -26,7 +26,7 @@ import (
 
 const (
 	// defaultVerifyDelay 是本轮验证码「签发 → 提交 verify」应满足的最小墙钟时长。
-	// 极验按此校验 passtime，过快必判机器。这是【总时长下限】而非固定睡眠：wasm 推理与
+	// gt 按此校验 passtime，过快必判机器。这是【总时长下限】而非固定睡眠：wasm 推理与
 	// 网络本身已耗时，故只补足差额（见 session.sleepUntil），不盲目再睡满。
 	defaultVerifyDelay = 2 * time.Second
 	// defaultTimeout 是默认 http.Client 的超时。
@@ -36,7 +36,7 @@ const (
 	defaultVisitHost = "api.geevisit.com"
 )
 
-// V3Client 是可复用的极验 V3 验证码客户端，支持点选与滑动。
+// V3Client 是可复用的 gt V3 验证码客户端，支持点选与滑动。
 // 它只承载配置（主机、http.Client、重试、时延），不含任何单次验证码的状态，
 // 因此可安全地被多个 goroutine 共享、对不同 gt/challenge 反复调用 GetValidate。
 // 零值不可用，请用 NewV3Client 构造。
@@ -60,7 +60,7 @@ func WithHTTPClient(hc *http.Client) Option {
 	}
 }
 
-// WithHosts 覆盖极验主机（getHost 用于首个 get.php，visitHost 用于 get/ajax/refresh）。
+// WithHosts 覆盖 gt 主机（getHost 用于首个 get.php，visitHost 用于 get/ajax/refresh）。
 // 任一参数为空则保留默认。
 func WithHosts(getHost, visitHost string) Option {
 	return func(c *V3Client) {
@@ -86,7 +86,7 @@ func WithMaxAttempts(n int) Option {
 }
 
 // WithVerifyDelay 覆盖「签发 → 提交」的最小墙钟时长（默认 2s）。<0 归一为 0。
-// 调低会加大被极验判为机器的风险；一般无需改动，测试可置 0 提速。
+// 调低会加大被 gt 判为机器的风险；一般无需改动，测试可置 0 提速。
 func WithVerifyDelay(d time.Duration) Option {
 	return func(c *V3Client) {
 		if d < 0 {
@@ -195,7 +195,7 @@ func (s *session) verify(ctx context.Context, challenge, w string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	// 失败时极验回 result="fail"（滑动为 message!="success"）且 validate 缺失/为空。
+	// 失败时 gt 回 result="fail"（滑动为 message!="success"）且 validate 缺失/为空。
 	result, _ := jsonString(data, "result")
 	message, _ := jsonString(data, "message")
 	if (result != "" && result != "success") || (message != "" && message != "success") {
@@ -245,7 +245,7 @@ func (c *V3Client) download(ctx context.Context, imgURL string) ([]byte, error) 
 }
 
 // getJSONP 发起 GET，注入唯一 callback，剥掉 JSONP 包裹，返回 data 子对象。
-// 极验所有 get/ajax 端点均以 geetest_<callback>(...) 形式返回，data 内含真正字段。
+// gt 所有 get/ajax 端点均以 geetest_<callback>(...) 形式返回，data 内含真正字段。
 func (c *V3Client) getJSONP(ctx context.Context, endpoint string, q url.Values) (map[string]any, error) {
 	callback := "geetest_" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	q.Set("callback", callback)

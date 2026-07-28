@@ -66,7 +66,7 @@ func TestJoinImageURL(t *testing.T) {
 	}
 }
 
-// TestGetJSONP 用 httptest 模拟极验 JSONP 端点，验证网络管道：callback 注入、
+// TestGetJSONP 用 httptest 模拟 gt JSONP 端点，验证网络管道：callback 注入、
 // 包裹剥离、data 提取，均不触真实网络。
 func TestGetJSONP(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

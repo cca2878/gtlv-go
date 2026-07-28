@@ -1,4 +1,4 @@
-// Package crypto 实现极验验证码 w 参数加密模块（RSA+AES+自定义 Base64，点选/滑动）。
+// Package crypto 实现 gt 验证码 w 参数加密模块（RSA+AES+自定义 Base64，点选/滑动）。
 // 移植自 biliTicker_gt（AGPL-3.0，https://github.com/Amorter/biliTicker_gt 的 src/w.rs）。
 package crypto
 
@@ -20,7 +20,7 @@ import (
 
 // ── 坐标转换 (从 pkg/image 迁移并增强) ───────────────────────────
 
-// scaleCoordinate 将模型输出的像素坐标缩放为极验格式。
+// scaleCoordinate 将模型输出的像素坐标缩放为 gt 格式。
 // 公式: round(coord / 333.375 * 10000)
 func scaleCoordinate(x, y float64) (int, int) {
 	scaledX := int(math.Round(x / 333.375 * 10000))

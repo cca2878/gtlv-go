@@ -92,9 +92,12 @@ func (s *Solver) nextPermutation() bool {
 	return true
 }
 
-// MatchWithCost 使用特征向量计算成本矩阵并执行最优匹配。
-// promptFeatures 和 answerFeatures 是 L2 归一化的特征向量列表。
-// 返回匹配对列表和成本矩阵。
+// MatchWithCost 计算成本矩阵并做【矩形】最优指派：n 个提示词特征(行)指派到 m 个答案特征(列)，
+// 要求 n ≤ m，每行占一个不同列，最小化总欧氏距离；未被指派的 m−n 列即干扰字，丢弃。
+//
+// 为何是矩形而非方阵：gt 新格式下答案网格含干扰字，m 可 > n（现观测 n+1）。旧方阵双射会强制
+// 点满全部 m 个格、无法排除干扰。n、m 皆小（n∈{2,3,4}、m≤MAX_ANS），穷举单射(带剪枝)即可。
+// 返回 (rows=[0..n), 各行所选列, costMatrix)；行序即提示词左→右序=点击序。
 func MatchWithCost(promptFeatures, answerFeatures [][]float64) ([]int, []int, [][]float64) {
 	n := len(promptFeatures)
 	m := len(answerFeatures)
@@ -108,8 +111,40 @@ func MatchWithCost(promptFeatures, answerFeatures [][]float64) ([]int, []int, []
 		}
 	}
 
-	solver := NewSolver(n)
-	rows, cols := solver.Solve(costMatrix)
+	rows := make([]int, n)
+	for i := range rows {
+		rows[i] = i
+	}
+	cols := make([]int, n)
+	if n == 0 || m < n {
+		return rows, cols, costMatrix
+	}
+
+	// 穷举「n 行 → m 列的单射」，取总代价最小者（带 best 剪枝）。
+	best := math.MaxFloat64
+	used := make([]bool, m)
+	cur := make([]int, n)
+	var rec func(r int, acc float64)
+	rec = func(r int, acc float64) {
+		if acc >= best {
+			return
+		}
+		if r == n {
+			best = acc
+			copy(cols, cur)
+			return
+		}
+		for j := 0; j < m; j++ {
+			if used[j] {
+				continue
+			}
+			used[j] = true
+			cur[r] = j
+			rec(r+1, acc+costMatrix[r][j])
+			used[j] = false
+		}
+	}
+	rec(0, 0)
 	return rows, cols, costMatrix
 }
 
