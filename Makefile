@@ -6,12 +6,29 @@ ZSTD := zstd
 WASM_CRATE := rust-wasm
 # 纯核 gtlv-core 现为独立仓（../gtlv-core），自带 fmt/clippy；本仓只 lint 自己的 rust-wasm 壳。
 WASM_TARGET := wasm32-wasip1
-WASM_OUT := $(WASM_CRATE)/target/$(WASM_TARGET)/release/captcha_wasm.wasm
+# 构建目录固定为仓内绝对路径并导出：下面的 remap 前缀要与实际路径逐字对应，
+# 若外部环境已设 CARGO_TARGET_DIR，产物就会落到别处、remap 失配。
+CARGO_TARGET_DIR := $(CURDIR)/$(WASM_CRATE)/target
+export CARGO_TARGET_DIR
+WASM_OUT := $(CARGO_TARGET_DIR)/$(WASM_TARGET)/release/captcha_wasm.wasm
+WASM_SRCS := $(wildcard $(WASM_CRATE)/src/*.rs)
 # WASM_ZST：go:embed 携带的压缩 wasm（跨平台一份，随仓提交）
 WASM_ZST := pkg/solver/captcha_wasm.wasm.zst
 BIN := bin
+BUILD := build
 
-.PHONY: all build-wasm build-go build-cli build-all test fmt check check-boundary check-tools clean deps help
+# 可复现构建：rustc 会把源码/依赖/OUT_DIR 的绝对路径写进产物（panic 位置等），
+# 不消除则换台机器重编就得到不同字节，无从校验入库产物是否与源码一致。
+# 三条 remap 覆盖全部三类路径来源；实测消除后跨机器 bit-identical。
+# ⚠️ RUSTFLAGS 会整体覆盖 .cargo/config.toml 的 target.*.rustflags，
+#    故 simd128 必须一并列在这里，否则会静默丢掉 tract 的手写 wasm 内核。
+CARGO_HOME_DIR := $(if $(CARGO_HOME),$(CARGO_HOME),$(HOME)/.cargo)
+WASM_RUSTFLAGS := -C target-feature=+simd128 \
+  --remap-path-prefix=$(CURDIR)/$(WASM_CRATE)=/src \
+  --remap-path-prefix=$(CARGO_HOME_DIR)=/cargo \
+  --remap-path-prefix=$(CARGO_TARGET_DIR)=/target
+
+.PHONY: all build-wasm build-go build-cli build-all test fmt check check-boundary check-tools clean deps help verify-wasm
 
 all: build-all
 
@@ -34,11 +51,30 @@ check-tools:
 	  echo "    Windows        scoop install zstd"; ok=0; }; \
 	[ $$ok = 1 ] || { echo "构建依赖缺失，见上。"; exit 1; }
 
-# 编译 Rust → wasm32-wasip1（SIMD128 见 rust-wasm/.cargo/config.toml），压成 go:embed 用的 wasm.zst。
-build-wasm: check-tools
-	cd $(WASM_CRATE) && $(CARGO) build --release --target $(WASM_TARGET)
-	$(ZSTD) -19 -q -f -c $(WASM_OUT) > $(WASM_ZST)
-	@echo "wasm.zst: $$(stat -c%s $(WASM_ZST)) bytes -> $(WASM_ZST)"
+# 编译 Rust → wasm32-wasip1（SIMD128 与 remap 见 WASM_RUSTFLAGS），压成 go:embed 用的 wasm.zst。
+# 写成文件规则而非 .PHONY：源码没动时 zstd 那 13 秒不必反复付，也不会无谓重写入库产物。
+build-wasm: $(WASM_ZST)
+
+$(WASM_OUT): $(WASM_SRCS) $(WASM_CRATE)/Cargo.toml $(WASM_CRATE)/Cargo.lock \
+             $(WASM_CRATE)/.cargo/config.toml rust-toolchain.toml | check-tools
+	cd $(WASM_CRATE) && RUSTFLAGS='$(WASM_RUSTFLAGS)' $(CARGO) build --release --locked --target $(WASM_TARGET)
+
+$(WASM_ZST): $(WASM_OUT)
+	$(ZSTD) -19 -q -f -c $(WASM_OUT) > $@
+	@echo "wasm.zst: $$(stat -c%s $@) bytes -> $@"
+
+# 校验入库的 wasm.zst 确实由当前源码编出——构建可复现，所以字节比对就是有效判据。
+# 比对解压后的 wasm 而非 .zst：zstd 不承诺跨版本比特一致，压缩器版本不该左右结论。
+verify-wasm: $(WASM_OUT)
+	@mkdir -p $(BUILD)
+	@$(ZSTD) -d -q -f -o $(BUILD)/committed.wasm $(WASM_ZST)
+	@if cmp -s $(BUILD)/committed.wasm $(WASM_OUT); then \
+	  echo "入库 wasm 与源码一致 ✓"; \
+	else \
+	  echo "入库的 $(WASM_ZST) 与当前源码重编的结果不一致。"; \
+	  echo "改过 rust-wasm 或升过 gtlv-core 后，须 make build-wasm 并把产物一并提交。"; \
+	  exit 1; \
+	fi
 
 build-go: build-wasm
 	$(GO) build ./...
@@ -52,7 +88,7 @@ build-all: build-cli
 # Go 单测（含 wire 往返）+ Rust 单测（wire 编码，host 目标）
 test: build-wasm
 	$(GO) test ./...
-	cd $(WASM_CRATE) && $(CARGO) test --release
+	cd $(WASM_CRATE) && $(CARGO) test --release --locked
 
 fmt:
 	$(GO) fmt ./...
@@ -67,8 +103,9 @@ check: check-boundary
 	@echo ">> go mod verify"; $(GO) mod verify
 	@echo ">> go test -race"; $(GO) test -race ./...
 	@echo ">> cargo fmt --check"; cd $(WASM_CRATE) && $(CARGO) fmt --check
-	@echo ">> cargo clippy -D warnings"; cd $(WASM_CRATE) && $(CARGO) clippy --release -- -D warnings
-	@echo ">> cargo test"; cd $(WASM_CRATE) && $(CARGO) test --release
+	@echo ">> cargo clippy -D warnings"; cd $(WASM_CRATE) && $(CARGO) clippy --release --locked -- -D warnings
+	@echo ">> cargo test"; cd $(WASM_CRATE) && $(CARGO) test --release --locked
+	@echo ">> verify-wasm"; $(MAKE) --no-print-directory verify-wasm
 	@if command -v golangci-lint >/dev/null 2>&1; then echo ">> golangci-lint"; golangci-lint run; else echo ">> golangci-lint 未安装，跳过（CI 会跑）"; fi
 	@echo "本地 CI 检查全绿 ✓"
 
@@ -80,11 +117,12 @@ check-boundary:
 	@echo "boundary OK: 仅 pkg/client 触网"
 
 clean:
-	rm -rf $(BIN) build
+	rm -rf $(BIN) $(BUILD)
 	cd $(WASM_CRATE) && $(CARGO) clean
 
 help:
 	@echo "  build-all           编 Rust→wasm→压缩内嵌→编 CLI"
+	@echo "  verify-wasm         校验入库的 wasm.zst 与当前源码一致（CI 同款判据）"
 	@echo "  check               推送前本地跑齐 CI 全部检查（与 CI 同工具链）"
 	@echo "  check-tools         检查外部构建依赖是否就位"
 	@echo "  test | fmt | clean | check-boundary"

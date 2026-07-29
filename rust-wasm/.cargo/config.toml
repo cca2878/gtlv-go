@@ -1,4 +1,8 @@
 # 启用 wasm SIMD128 —— tract 借此选中手写内核 wasm_f32_8x8（ManuallyOptimized），
 # 是 wasm 下最快的 f32 矩阵乘内核。缺此则回落慢速通道。
+#
+# ⚠️ 这里只在直接 `cargo build` 时生效。`make build-wasm` 会设 RUSTFLAGS（可复现构建要的
+# 路径 remap），而 RUSTFLAGS 环境变量整体覆盖本文件的 rustflags——故 Makefile 的
+# WASM_RUSTFLAGS 里重复列了 simd128。要加编译开关，两处都得加。
 [target.wasm32-wasip1]
 rustflags = ["-C", "target-feature=+simd128"]

@@ -106,7 +106,10 @@ jobs:
   rust:
     name: Rust (wasm build · test)
     needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' }}
+    # Always runs on a PR so it can serve as a required status check (a job that
+    # is conditionally skipped can never satisfy one). On dev pushes it stays
+    # path-gated, since the Rust build is the slow part of this workflow.
+    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -124,10 +127,18 @@ jobs:
         run: cargo fmt --manifest-path rust-wasm/Cargo.toml --check
 
       - name: cargo clippy
-        run: cargo clippy --manifest-path rust-wasm/Cargo.toml --release -- -D warnings
+        run: cargo clippy --manifest-path rust-wasm/Cargo.toml --release --locked -- -D warnings
 
-      - name: build wasm (wasm32-wasip1, SIMD128)
-        run: cargo build --manifest-path rust-wasm/Cargo.toml --release --target wasm32-wasip1
+      # Goes through make so the build uses the same reproducibility flags as a
+      # developer's `make check` (pinned toolchain + --locked + path remapping);
+      # a bare `cargo build` here would produce different bytes and fail below.
+      # The step builds the wasm and byte-compares it against the committed
+      # artifact, which is what keeps "remember to rebuild the wasm" from being
+      # a matter of discipline. Advisory on dev (the wasm may lag during
+      # iteration), enforced on the PR into main.
+      - name: build wasm + verify it matches the committed artifact
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: make verify-wasm
 
       - name: cargo test (host)
-        run: cargo test --manifest-path rust-wasm/Cargo.toml --release
+        run: cargo test --manifest-path rust-wasm/Cargo.toml --release --locked

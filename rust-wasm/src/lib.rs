@@ -6,7 +6,7 @@
 //! ABI（静态共享缓冲，不跨边界传结构体/指针所有权）：
 //!   - `gt_buffer_ptr() -> u32`        共享缓冲在 wasm 线性内存中的偏移
 //!   - `gt_buffer_cap() -> u32`        缓冲容量（字节）
-//!   - `gt_init() -> i32`              从固定 WASI 路径加载模型（一次）；0=ok，<0=err
+//!   - `gt_init() -> i32`              加载模型（一次；模型由 gtlv-core 编在本模块内）；0=ok，<0=err
 //!   - `gt_solve(img_len, conf) -> i32`  读缓冲前 img_len 字节为图像 → 求解 → 把 wire 二进制写回缓冲首部，返回其长度(>0)；<0=err
 //!
 //! 并发：模块单实例、guest 单线程；Go 侧对每次「写图→gt_solve→读结果」加锁串行化。
