@@ -67,6 +67,14 @@ jobs:
 
   build:
     name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+    # A push to dev and the PR that follows both run this workflow, and the two
+    # events land in different concurrency groups, so neither cancels the other.
+    # Rather than drop one of the runs — the required checks have to come from
+    # the PR event, and merging the groups would let a push cancel the PR's
+    # checks — keep dev's run to the fast feedback and leave the six-platform
+    # cross-compile to where it earns its keep: the PR gate, and main after the
+    # merge. Turns a dev push from ~5 minutes back into ~50 seconds.
+    if: ${{ github.event_name == 'pull_request' || github.ref_name == 'main' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -106,7 +114,10 @@ jobs:
   rust:
     name: Rust (wasm build · test)
     needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' }}
+    # Always runs on a PR so it can serve as a required status check (a job that
+    # is conditionally skipped can never satisfy one). On dev pushes it stays
+    # path-gated, since the Rust build is the slow part of this workflow.
+    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -124,10 +135,18 @@ jobs:
         run: cargo fmt --manifest-path rust-wasm/Cargo.toml --check
 
       - name: cargo clippy
-        run: cargo clippy --manifest-path rust-wasm/Cargo.toml --release -- -D warnings
+        run: cargo clippy --manifest-path rust-wasm/Cargo.toml --release --locked -- -D warnings
 
-      - name: build wasm (wasm32-wasip1, SIMD128)
-        run: cargo build --manifest-path rust-wasm/Cargo.toml --release --target wasm32-wasip1
+      # Goes through make so the build uses the same reproducibility flags as a
+      # developer's `make check` (pinned toolchain + --locked + path remapping);
+      # a bare `cargo build` here would produce different bytes and fail below.
+      # The step builds the wasm and byte-compares it against the committed
+      # artifact, which is what keeps "remember to rebuild the wasm" from being
+      # a matter of discipline. Advisory on dev (the wasm may lag during
+      # iteration), enforced on the PR into main.
+      - name: build wasm + verify it matches the committed artifact
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: make verify-wasm
 
       - name: cargo test (host)
-        run: cargo test --manifest-path rust-wasm/Cargo.toml --release
+        run: cargo test --manifest-path rust-wasm/Cargo.toml --release --locked

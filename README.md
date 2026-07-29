@@ -38,7 +38,7 @@ import "github.com/cca2878/gtlv-go/pkg/solver"
 go get github.com/cca2878/gtlv-go
 ```
 
-`go get` 已包含内嵌的 `.wasm`；点选推理还需两个模型文件（见 [模型](#模型)），经 `WithModelDir` 指向其目录。
+`go get` 即全部所需——模型也在内嵌的 `.wasm` 里（见 [模型](#模型)），无需任何外部文件。
 
 ## 使用
 
@@ -52,7 +52,7 @@ import (
 )
 
 s, err := solver.NewCaptchaSolver(
-    solver.WithModelDir("./models"), // 含 yolo26n_gt_v2_384.onnx 与 siamese_feature.nnef.tgz
+    // 全部选项都可省略：模型与 wasm 都已内嵌。
     // solver.WithCacheDir("/path"), // 可选；移动端须显式注入 app 私有可写目录
     // solver.WithWasmPath("x.wasm"),// 可选；默认用内嵌模块
 )
@@ -95,7 +95,7 @@ default:
 gt/challenge 由你的业务接口提供；`client.Register` 可从公开登记端点取一对用于自测。端到端联网冒烟：
 
 ```bash
-go run ./cmd/gt-captcha-e2e -models ./models -n 3   # 登记→拉图→求解→提交→打印 validate
+go run ./cmd/gt-captcha-e2e -n 3   # 登记→拉图→求解→提交→打印 validate
 ```
 
 ## 支持平台
@@ -119,13 +119,16 @@ make build-all                    # 编 Rust→wasm→压缩内嵌→编 CLI
 ./bin/gt-captcha-test -image testdata/sample.png -gt <GT> -challenge <CHALLENGE> -verbose
 ```
 
+`pkg/solver/captcha_wasm.wasm.zst` 是 `go:embed` 的源，随仓提交——`go get` 只拉已提交的源码，没有任何构建钩子能替使用方生成它。所以**改过 `rust-wasm/` 或升过 gtlv-core 后，须 `make build-wasm` 把新产物一并提交**。
+
+这份产物是可复现的：工具链由 `rust-toolchain.toml` 钉死，依赖由 `Cargo.lock` + `--locked` 锁定，构建路径由 `--remap-path-prefix` 抹平（见 Makefile 的 `WASM_RUSTFLAGS`），因此换台机器重编也是同样的字节。`make verify-wasm` 据此校验入库产物确实由当前源码编出，CI 在合入 main 的 PR 上强制这一条。
+
 ### 编译缓存
 
 wazero 首次把 wasm AOT 编成机器码需数秒（**首启冷**）。给 `NewCaptchaSolver` 传一个持久目录即可让二次及以后启动直接命中（**之后暖**）：
 
 ```go
 solver.NewCaptchaSolver(
-    solver.WithModelDir("./models"),
     solver.WithCacheDir("/var/lib/myapp/gtlv"), // 持久、可写；缺省用 os.UserCacheDir()/gtlv-go
 )
 ```
@@ -136,12 +139,12 @@ solver.NewCaptchaSolver(
 
 ## 模型
 
-点选需两个模型文件（放 `models/`，经 `WithModelDir` 指向）：
+点选用两个模型，都由 [gtlv-core](https://github.com/cca2878/gtlv-core) 编进 wasm，**使用方无需提供任何文件**：
 
 - `yolo26n_gt_v2_384.onnx` —— nano@384 目标检测（~9.7MB）
-- `siamese_feature.nnef.tgz` —— 特征提取（~11MB）
+- `siamese_feature.nnef.tgz` —— 特征提取（~17.9MB）
 
-选定规格 nano@384 在纯 CPU 上单次求解约 0.5–0.7s，图级准确率约 94%。模型默认**不内嵌**（作外部目录，避免二进制臃肿）；如需真·单文件，可自行 `go:embed` 模型并用 wazero `WithFSMount` 挂载。
+选定规格 nano@384 在纯 CPU 上单次求解约 0.5–0.7s，图级准确率约 94%。模型归 core 拥有是为了**单一来源**——Go 与 Python 两个壳共用同一份，不各存副本。代价是内嵌 wasm 有 28MB，以及换模型要重编 wasm（临时做 A/B 可用 `WithWasmPath` 加载另一份）。
 
 ## 目录
 
@@ -156,8 +159,7 @@ solver.NewCaptchaSolver(
 | `internal/{image,matcher,perf}/` | 图像解码、匈牙利匹配、计时（实现细节，不对使用方暴露） |
 | `cmd/gt-captcha-test/` | 点选本地调试 CLI（给定图片/参数出坐标与 W） |
 | `cmd/gt-captcha-e2e/` | 端到端联网冒烟（登记 → 自动分派点选/滑动 → validate） |
-| `rust-wasm/` | Rust 推理核心 → `wasm32-wasip1`（`lib.rs` 导出 gt_init/gt_solve/gt_buffer_*） |
-| `models/` | 点选模型（onnx + nnef.tgz），随库入仓 |
+| `rust-wasm/` | Rust 推理壳 → `wasm32-wasip1`（`lib.rs` 导出 gt_init/gt_solve/gt_buffer_*；推理与模型来自 gtlv-core） |
 
 ## 状态
 
