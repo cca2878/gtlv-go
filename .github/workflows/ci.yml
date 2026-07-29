@@ -67,6 +67,14 @@ jobs:
 
   build:
     name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+    # A push to dev and the PR that follows both run this workflow, and the two
+    # events land in different concurrency groups, so neither cancels the other.
+    # Rather than drop one of the runs — the required checks have to come from
+    # the PR event, and merging the groups would let a push cancel the PR's
+    # checks — keep dev's run to the fast feedback and leave the six-platform
+    # cross-compile to where it earns its keep: the PR gate, and main after the
+    # merge. Turns a dev push from ~5 minutes back into ~50 seconds.
+    if: ${{ github.event_name == 'pull_request' || github.ref_name == 'main' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
